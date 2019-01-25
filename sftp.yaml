@@ -29,24 +29,19 @@ spec:
         - name: users
           secret:
             secretName: users
-        - name: sftp-gcloud-key
-          secret:
-            secretName: sftp-gcloud-key
         - name: gcs-mounts
           configMap:
             name: gcs-mounts
             defaultMode: 0744
       containers:
       - name: sftp
-        image: mikeghen/kube-sftp
-        imagePullPolicy: Never
+        image: gcr.io/narvar-qa-202121/sftp-gcs:0.1.0
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 22
         volumeMounts:
           - mountPath: /etc/sftp
             name: users
-          - mountPath: /credentials
-            name: sftp-gcloud-key
           - mountPath: /etc/sftp.d/
             name: gcs-mounts
         securityContext:
