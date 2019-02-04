@@ -35,7 +35,7 @@ spec:
             defaultMode: 0744
       containers:
       - name: sftp
-        image: gcr.io/narvar-qa-202121/sftp-gcs:0.1.0
+        image: gcr.io/narvar-qa-202121/sftp-gcs:0.2.1
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 22
