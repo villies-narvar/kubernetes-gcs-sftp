@@ -1,0 +1,72 @@
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: {{ include "sftp.fullname" . }}
+  labels:
+    app.kubernetes.io/name: {{ include "sftp.name" . }}
+    helm.sh/chart: {{ include "sftp.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "sftp.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "sftp.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      volumes:
+        - name: {{ .Values.volumes.usersSecretName }}
+          secret:
+            secretName: {{ .Values.volumes.usersSecretName }}
+        - name: {{ .Values.volumes.gcsMounts }}
+          configMap:
+            name: {{ .Values.volumes.gcsMounts }}
+            defaultMode: {{ .Values.volumes.gcsMode }}
+        - name: {{ .Values.volumes.sshHostKeys }}
+          secret:
+            secretName: {{ .Values.volumes.sshHostKeys }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          volumeMounts:
+          - mountPath: {{ .Values.volumes.usersMountPath }}
+            name: {{ .Values.volumes.usersSecretName }}
+          - mountPath: {{ .Values.volumes.gcsMountPath }}
+            name: {{ .Values.volumes.gcsMounts }}
+          - mountPath: {{ .Values.volumes.sshHostKeysMountPath }}
+            name: {{ .Values.volumes.sshHostKeys }}
+          securityContext:
+            privileged: true
+            capabilities:
+              add:
+                - SYS_ADMIN
+          ports:
+            - name: ssh
+              containerPort: 22
+              protocol: TCP
+          livenessProbe:
+            tcpSocket:
+              port: 22
+          readinessProbe:
+            tcpSocket:
+              port: 22
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+    {{- with .Values.nodeSelector }}
+      nodeSelector:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+{{ toYaml . | indent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+{{ toYaml . | indent 8 }}
+    {{- end }}

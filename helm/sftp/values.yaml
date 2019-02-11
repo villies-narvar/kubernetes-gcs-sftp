@@ -1,0 +1,45 @@
+# Default values for sftp.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+name: sftp
+replicaCount: 3
+
+image:
+  repository: gcr.io/narvar-qa-202121/sftp-gcs
+  tag: 0.2.4
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: LoadBalancer
+  port: 22
+
+volumes:
+  usersSecretName: users
+  usersMountPath: /etc/sftp
+  gcsMounts: gcs-mounts
+  gcsMountPath: /etc/sftp.d/
+  gcsMode: 0744
+  sshHostKeys: ssh-host-keys
+  sshHostKeysMountPath: /tmp/ssh
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #  cpu: 100m
+  #  memory: 128Mi
+  # requests:
+  #  cpu: 100m
+  #  memory: 128Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
