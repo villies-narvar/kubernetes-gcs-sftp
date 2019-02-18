@@ -16,6 +16,8 @@ RUN curl -o /tmp/apt-key.gpg https://packages.cloud.google.com/apt/doc/apt-key.g
     apt-key add /tmp/apt-key.gpg && rm -f /tmp/apt-key.gpg
 RUN apt-get update && apt-get install -y --no-install-recommends gcsfuse && rm -rf /var/lib/apt/lists/*
 
+RUN groupadd --gid 1001 sftponly && groupadd --gid 1002 passwordonly
+
 COPY files/sshd_config /etc/ssh/sshd_config
 COPY files/create-sftp-user /usr/local/bin/
 COPY files/entrypoint /
