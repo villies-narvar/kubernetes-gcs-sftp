@@ -19,89 +19,66 @@ bucket-name
   - /user2
 ```
 
-The mounting is done in `etc/sftp.d/mount_user_directories.sh`. When deploying to Kubernetes, this script gets executed as a `postStart` command.
+The mounting is done in `etc/sftp.d/gcs-mounts.sh`. When deploying to Kubernetes, this script gets executed as a `postStart` command.
 
 ## Access Control for GCS Bucket
 We just need to ensure your GKE cluster is created with the OAuth scope https://www.googleapis.com/auth/devstorage.read_write, and everything else will be handled automatically. Alternatively, we can mount a file in Service Account JSON key.
 
 # Setup Instructions
-## Dependancies
-For testing, you will need to have Minikube and Docker installed.
-
-For deployment, you will need to have the gcloud SDK.
+## Dependencies
+For deployment, you will need to have terraform, kubectl, the gcloud SDK and helm.
 
 ## Configuration
-You can configure SFTP user accounts by adjusting what's in `etc/sftp/users.conf` and `etc/sftp.d/mount_user_directories.sh`.
+You can configure SFTP user accounts by adjusting what's in `etc/sftp/users.conf` and `etc/sftp.d/gcs-mounts.sh`.
 
 When adding a new user, add a new line into `etc/sftp/users.conf`:
 ```
-username:password:uid:gid:directory
+<username>:<encrypted_password>:e:<uid>:<gid>:<comma_separated_directory_names>
 ```
-Where `uid` is a number (e.g. 1003) and `gid` is a number (e.g. 1003).
-And then add a new line into `etc/sftp.d/mount_user_directories.sh` to monunt their `directory` to a GCS bucket:
+Where `uid` is a number (e.g. 1003) and `gid` is a number (e.g. 1002).
+And then add a new line for each directory into `etc/sftp.d/gcs-mounts.sh` to mount them to a GCS bucket:
 ```
-runuser -l partner1 -c \
-'export GOOGLE_APPLICATION_CREDENTIALS=/credentials/gcloud-key.json && \
-gcsfuse -o nonempty --only-dir username bucket /home/username/ftp'
+runuser -l <username> -c 'gcsfuse -o nonempty --only-dir <username> <inbound_gcs_bucket> /home/<username>/inbound'
+runuser -l <username> -c 'gcsfuse -o nonempty --only-dir <username> <outbound_gcs_bucket> /home/<username>/outbound'
 ```
-This command will mount the bucket as the given user. It also does some environment variable trickery.
 
-:warning: User passwords are committed to this repo as a demo. Not the best to commit them in practice.
-
-## Production Deployment
+## Deployment
 To deploy to GKE follow these steps:
 
-### To Do
-- [ ] Push docker image to dockerhub
-- [ ] Document production deployment instructions
-
-## Development Setup for Testing
-Follow these steps to run this locally with `minikube`.
-
-### 1. Start minikube:
+### 1. Use terraform to create the GKE cluster and GCS buckets:
 ```
-minikube start
+cd terraform-gcp && terraform apply
 ```
 
-### 2. Tell minikube to use local docker images:
+### 2. Use gcloud to get GKE cluster credentials:
 ```
-eval $(minikube docker-env)
-```
-
-### 3. Build a local image from the `Dockerfile`:
-```
-docker build --rm -t mikeghen/kube-sftp .
+gcloud beta container clusters get-credentials villies-test-sftp --region us-west1 --project narvar-qa-202121
 ```
 
-### 4. Setup Secrets and Config Mappings
-You'll need to adjust files in `etc` so that it reflects the SFTP users you're planning to use. You'll also need a Service Account as well.
+### 3. Use kubectl to create tiller service account:
+```
+kubectl apply -f helm/tiller_rbac.yaml
+```
+
+### 4. Install helm to the GKE cluster:
+```
+helm init --service-account tiller
+```
+
+### 5. Setup Secrets and Config Mappings
+You'll need to adjust files in `etc` so that it reflects the SFTP users you're planning to use.
 
 Then, you can run these commands to put these files on the cluster as secrets:
 ```
 kubectl create secret generic users --from-file=users.conf=./etc/sftp/users.conf
-kubectl create secret generic sftp-gcloud-key --from-file=gcloud-key.json=./secrets/gcloud-key.json
+kubectl create secret generic ssh-host-keys --from-file=sftp_ssh_host_keys.tgz=/path/to/sftp_ssh_host_keys.tgz
 kubectl create configmap gcs-mounts --from-file=gcs-mounts.sh=./etc/sftp.d/gcs-mounts.sh
 ```
 * **users** - Code for maintaining users credentials for SFTP access
-* **sftp-cloud-key** - JSON Key for GCS Service Account
-* **gcs-mounts** - Code for mounting GCS bucket
+* **ssh-host-keys** - Tar archive containing the SSH host keys for the SFTP service
+* **gcs-mounts** - Code for mounting GCS buckets
 
-### 5. Deploy the SFTP server to Kubernetes:
+### 6. Deploy the SFTP service to Kubernetes:
 ```
-kubectl apply -f sftp.yaml
-```
-### 6. Get the test IP and port:
-```
-minikube service sftp --url
-```
-This will give you the IP and NodePort port.
-
-:information_source: We use NodePort 30022 for SFTP.
-
-### 7. Confirm you can SFTP using the usernames and password you setup in `etc/sftp*` with `sftp` utility:
-```
-$ sftp -P 30022 username@192.168.99.100
-username@192.168.99.100's password:
-sftp> pwd
-/directory
+helm install helm/sftp
 ```
